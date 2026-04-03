@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme inline {
-  --font-heading: var(--font-syne);
+  --font-heading: var(--font-inter);
   --font-body: var(--font-manrope);
 }
 
@@ -83,6 +83,22 @@
 }
 
 /* ─── Scrollbar ─── */
+/* ─── Hero glow ─── */
+.hero-glow {
+  background: radial-gradient(
+    ellipse 80% 50% at 50% 30%,
+    rgba(217, 119, 6, 0.12) 0%,
+    rgba(120, 80, 200, 0.04) 50%,
+    transparent 80%
+  );
+}
+
+/* ─── Section separator ─── */
+.gradient-sep {
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.06), transparent);
+}
+
 ::-webkit-scrollbar {
   width: 6px;
 }
