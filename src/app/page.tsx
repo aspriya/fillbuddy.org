@@ -308,7 +308,7 @@ export default function LandingPage() {
         <p className="text-center text-gray-500 mb-12 max-w-lg mx-auto">
           We built FillBuddy because every other option had the same problems.
         </p>
-        <div className="space-y-4 max-w-2xl mx-auto">
+        <div className="space-y-3 max-w-2xl mx-auto">
           {[
             { pain: '"I saved my filled PDF and now I can\'t edit what I typed"', fix: 'FillBuddy\'s save files keep all annotations editable. Come back anytime.' },
             { pain: '"This tool uploaded my tax form to a server I don\'t trust"', fix: 'FillBuddy is 100% client-side. Your documents never leave your device.' },
@@ -316,11 +316,24 @@ export default function LandingPage() {
             { pain: '"I just need to fill one form, not pay $13/month"', fix: 'FillBuddy is free. No hidden limits. No premium tier. No account.' },
             { pain: '"The free version puts a watermark on my downloaded PDF"', fix: 'FillBuddy: no watermarks, no branding. Your PDF, clean.' },
           ].map((item, i) => (
-            <div key={i} className="glass-card rounded-xl p-5 sm:p-6">
-              <p className="text-sm text-red-400/80 italic mb-2">{item.pain}</p>
-              <p className="text-sm text-emerald-400/90 flex items-start gap-2">
-                <Check size={16} className="mt-0.5 shrink-0" /> {item.fix}
-              </p>
+            <div
+              key={i}
+              className="group relative rounded-xl bg-white/[0.025] hover:bg-white/[0.045] border border-white/[0.06] transition-all duration-300 overflow-hidden"
+            >
+              <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-amber-500 to-amber-600/40" />
+              <div className="pl-7 pr-6 py-5 sm:pl-8 sm:pr-7 sm:py-6 flex flex-col sm:flex-row sm:items-start gap-4">
+                {/* Pain */}
+                <p className="text-[15px] text-gray-400 italic leading-relaxed sm:flex-1 line-through decoration-white/[0.08] decoration-1">{item.pain}</p>
+                {/* Arrow */}
+                <ChevronRight size={16} className="hidden sm:block text-amber-500/50 shrink-0 mt-1" />
+                {/* Fix */}
+                <p className="text-sm text-gray-200 leading-relaxed sm:flex-1 flex items-start gap-2">
+                  <span className="inline-flex w-5 h-5 rounded-full bg-emerald-500/15 items-center justify-center shrink-0 mt-0.5">
+                    <Check size={11} className="text-emerald-400" strokeWidth={3} />
+                  </span>
+                  {item.fix}
+                </p>
+              </div>
             </div>
           ))}
         </div>
