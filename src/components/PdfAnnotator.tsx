@@ -14,7 +14,10 @@ import {
   Plus,
   Layers,
   RotateCcw,
+  Redo2,
   Save,
+  Keyboard,
+  Copy,
 } from 'lucide-react';
 import type { Annotation, ToolType, PageData } from '@/lib/types';
 import SignaturePad from './SignaturePad';
@@ -52,6 +55,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
   const [annotations, setAnnotations] = useState<Annotation[]>(initialAnnotations || []);
   const [tool, setTool] = useState<ToolType>('text');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [fontSize, setFontSize] = useState(14);
   const [markSize, setMarkSize] = useState(22);
   const [showSigPad, setShowSigPad] = useState(false);
@@ -60,6 +64,9 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [history, setHistory] = useState<Annotation[][]>([]);
+  const [future, setFuture] = useState<Annotation[][]>([]);
+  const [clipboard, setClipboard] = useState<Annotation | null>(null);
+  const [showLegend, setShowLegend] = useState(false);
 
   /* ── Render PDF pages ────────────────────────────────────── */
 
@@ -148,14 +155,30 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
 
   const pushHistory = useCallback(() => {
     setHistory((h) => [...h.slice(-30), annotations]);
+    setFuture([]);
   }, [annotations]);
 
   const undo = useCallback(() => {
     setHistory((h) => {
       if (!h.length) return h;
       const prev = h[h.length - 1];
-      setAnnotations(prev);
+      setAnnotations((curr) => {
+        setFuture((f) => [...f.slice(-30), curr]);
+        return prev;
+      });
       return h.slice(0, -1);
+    });
+  }, []);
+
+  const redo = useCallback(() => {
+    setFuture((f) => {
+      if (!f.length) return f;
+      const next = f[f.length - 1];
+      setAnnotations((curr) => {
+        setHistory((h) => [...h.slice(-30), curr]);
+        return next;
+      });
+      return f.slice(0, -1);
     });
   }, []);
 
@@ -165,6 +188,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
       const id = uid();
       setAnnotations((prev) => [...prev, { id, ...partial }]);
       setSelectedId(id);
+      if (partial.type === 'text') setEditingId(id);
     },
     [pushHistory],
   );
@@ -183,7 +207,34 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
     pushHistory();
     setAnnotations((prev) => prev.filter((a) => a.id !== selectedId));
     setSelectedId(null);
+    setEditingId(null);
   }, [selectedId, pushHistory]);
+
+  const duplicateSelected = useCallback(() => {
+    if (!selectedId) return;
+    const src = annotations.find((a) => a.id === selectedId);
+    if (!src) return;
+    pushHistory();
+    const newId = uid();
+    const dup = { ...src, id: newId, x: src.x + 20, y: src.y + 20 };
+    setAnnotations((prev) => [...prev, dup]);
+    setSelectedId(newId);
+  }, [selectedId, annotations, pushHistory]);
+
+  const copySelected = useCallback(() => {
+    if (!selectedId) return;
+    const src = annotations.find((a) => a.id === selectedId);
+    if (src) setClipboard(src);
+  }, [selectedId, annotations]);
+
+  const pasteClipboard = useCallback(() => {
+    if (!clipboard) return;
+    pushHistory();
+    const newId = uid();
+    const pasted = { ...clipboard, id: newId, x: clipboard.x + 20, y: clipboard.y + 20 };
+    setAnnotations((prev) => [...prev, pasted]);
+    setSelectedId(newId);
+  }, [clipboard, pushHistory]);
 
   /* ── Page click → place annotation ───────────────────────── */
 
@@ -197,6 +248,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
 
       if (tool === 'select') {
         setSelectedId(null);
+        setEditingId(null);
         return;
       }
       if (tool === 'text') {
@@ -261,6 +313,15 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
   const handleAnnotClick = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     setSelectedId(id);
+    setEditingId(null);
+  };
+
+  const handleAnnotDoubleClick = (e: React.MouseEvent, ann: Annotation) => {
+    e.stopPropagation();
+    if (ann.type === 'text') {
+      setSelectedId(ann.id);
+      setEditingId(ann.id);
+    }
   };
 
   const startMove = (e: React.MouseEvent, ann: Annotation) => {
@@ -278,6 +339,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
       origH: ann.height,
     });
     setSelectedId(ann.id);
+    setEditingId(null);
   };
 
   const startResize = (e: React.MouseEvent, ann: Annotation) => {
@@ -296,23 +358,9 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
     });
   };
 
-  /* ── Keyboard shortcuts ──────────────────────────────────── */
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
-      if (e.key === 'Escape') setSelectedId(null);
-      if (e.ctrlKey && e.key === 'z') undo();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [deleteSelected, undo]);
-
   /* ── Download ────────────────────────────────────────────── */
 
-  const handleDownload = async () => {
+  const handleDownload = useCallback(async () => {
     setSaving(true);
     try {
       const result = await exportAnnotatedPdf(pdfBytes, annotations, pages);
@@ -331,8 +379,9 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
       console.error('Export failed:', err);
     }
     setSaving(false);
-  };
-  const handleSaveProgress = () => {
+  }, [pdfBytes, annotations, pages, fileName]);
+
+  const handleSaveProgress = useCallback(() => {
     const chunkSize = 8192;
     let binary = '';
     for (let i = 0; i < pdfBytes.length; i += chunkSize) {
@@ -353,8 +402,104 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  };
+  }, [pdfBytes, fileName, annotations]);
+
+  /* ── Keyboard shortcuts ──────────────────────────────────── */
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      const inInput = tag === 'INPUT' || tag === 'TEXTAREA';
+      const mod = e.ctrlKey || e.metaKey;
+
+      // Shortcuts that work even in inputs: Ctrl+S, Ctrl+D (download), Escape
+      if (mod && e.key === 's') {
+        e.preventDefault();
+        handleSaveProgress();
+        return;
+      }
+      if (e.key === 'Escape') {
+        if (editingId) { setEditingId(null); return; }
+        setSelectedId(null); setShowLegend(false); return;
+      }
+
+      // Block remaining shortcuts when typing in inputs
+      if (inInput) return;
+
+      // Modifier combos
+      if (mod && e.key === 'z' && e.shiftKey) { e.preventDefault(); redo(); return; }
+      if (mod && e.key === 'z') { e.preventDefault(); undo(); return; }
+      if (mod && e.key === 'c') { e.preventDefault(); copySelected(); return; }
+      if (mod && e.key === 'v') { e.preventDefault(); pasteClipboard(); return; }
+      if (mod && e.key === 'd') { e.preventDefault(); handleDownload(); return; }
+
+      // Delete / Escape
+      if (e.key === 'Delete' || e.key === 'Backspace') { deleteSelected(); return; }
+
+      // Single-key tool switch
+      if (e.key === 'v' || e.key === 'V') { setTool('select'); return; }
+      if (e.key === 't' || e.key === 'T') { setTool('text'); return; }
+      if (e.key === 'c' || e.key === 'C') { setTool('check'); return; }
+      if (e.key === 'x' || e.key === 'X') { setTool('cross'); return; }
+      if (e.key === 'l' || e.key === 'L') { setTool('strikeout'); return; }
+      if (e.key === 's' || e.key === 'S') {
+        if (!sigData) { setShowSigPad(true); } else { setTool('signature'); }
+        return;
+      }
+
+      // Duplicate
+      if (e.key === 'd' || e.key === 'D') { duplicateSelected(); return; }
+
+      // Toggle legend
+      if (e.key === '?') { setShowLegend((v) => !v); return; }
+
+      // Size adjustment: [ and ]
+      if (e.key === '[') {
+        if (tool === 'text') setFontSize((s) => Math.max(8, s - 1));
+        else if (tool === 'check' || tool === 'cross') setMarkSize((s) => Math.max(10, s - 2));
+        if (selectedId) {
+          const sel = annotations.find((a) => a.id === selectedId);
+          if (sel?.type === 'text') updateAnnotation(sel.id, { fontSize: Math.max(8, (sel.fontSize || 14) - 1) });
+          else if (sel && (sel.type === 'check' || sel.type === 'cross')) {
+            updateAnnotation(sel.id, { width: Math.max(10, sel.width - 2), height: Math.max(10, sel.height - 2) });
+          }
+        }
+        return;
+      }
+      if (e.key === ']') {
+        if (tool === 'text') setFontSize((s) => Math.min(48, s + 1));
+        else if (tool === 'check' || tool === 'cross') setMarkSize((s) => Math.min(60, s + 2));
+        if (selectedId) {
+          const sel = annotations.find((a) => a.id === selectedId);
+          if (sel?.type === 'text') updateAnnotation(sel.id, { fontSize: Math.min(48, (sel.fontSize || 14) + 1) });
+          else if (sel && (sel.type === 'check' || sel.type === 'cross')) {
+            updateAnnotation(sel.id, { width: Math.min(60, sel.width + 2), height: Math.min(60, sel.height + 2) });
+          }
+        }
+        return;
+      }
+
+      // Arrow nudge
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && selectedId) {
+        e.preventDefault();
+        const step = e.shiftKey ? 10 : 1;
+        const dx = e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0;
+        const dy = e.key === 'ArrowDown' ? step : e.key === 'ArrowUp' ? -step : 0;
+        setAnnotations((prev) =>
+          prev.map((a) => (a.id === selectedId ? { ...a, x: a.x + dx, y: a.y + dy } : a)),
+        );
+        return;
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [deleteSelected, undo, redo, copySelected, pasteClipboard, duplicateSelected, handleSaveProgress, handleDownload, tool, sigData, selectedId, editingId, annotations, updateAnnotation]);
+
   /* ── Toolbar config ──────────────────────────────────────── */
+
+  const toolShortcutMap: Record<ToolType, string> = {
+    select: 'V', text: 'T', check: 'C', cross: 'X', strikeout: 'L', signature: 'S',
+  };
 
   const tools: { id: ToolType; icon: React.ReactNode; label: string }[] = [
     { id: 'select', icon: <MousePointer size={16} />, label: 'Select' },
@@ -397,7 +542,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
             <button
               onClick={handleSaveProgress}
               className="flex items-center gap-1.5 bg-gray-100 text-gray-700 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors"
-              title="Save progress to continue later"
+              title="Save progress (Ctrl+S)"
             >
               <Save size={16} /> Save
             </button>
@@ -405,6 +550,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
               onClick={handleDownload}
               disabled={saving}
               className="flex items-center gap-1.5 bg-amber-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors"
+              title="Download PDF (Ctrl+D)"
             >
               <Download size={16} /> {saving ? 'Saving...' : 'Download PDF'}
             </button>
@@ -429,8 +575,10 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
                     ? 'bg-amber-100 text-amber-800'
                     : 'text-gray-600 hover:bg-gray-200'
                 }`}
+                title={`${t.label} (${toolShortcutMap[t.id]})`}
               >
                 {t.icon} {t.label}
+                <kbd className="hidden sm:inline text-[10px] font-mono opacity-50 ml-0.5">{toolShortcutMap[t.id]}</kbd>
               </button>
             ))}
 
@@ -535,15 +683,37 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
               <RotateCcw size={16} />
             </button>
 
+            {/* Redo */}
+            <button
+              onClick={redo}
+              disabled={!future.length}
+              className="p-1.5 hover:bg-gray-200 rounded text-gray-500 disabled:opacity-30"
+              title="Redo (Ctrl+Shift+Z)"
+            >
+              <Redo2 size={16} />
+            </button>
+
             {/* Delete */}
             {selectedId && (
               <button
                 onClick={deleteSelected}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-red-600 hover:bg-red-50"
+                title="Delete (Del)"
               >
                 <Trash2 size={14} /> Delete
               </button>
             )}
+
+            {/* Shortcuts legend toggle */}
+            <button
+              onClick={() => setShowLegend((v) => !v)}
+              className={`p-1.5 rounded transition-colors ${
+                showLegend ? 'bg-amber-100 text-amber-700' : 'hover:bg-gray-200 text-gray-500'
+              }`}
+              title="Keyboard shortcuts (?)"
+            >
+              <Keyboard size={16} />
+            </button>
           </div>
         </div>
       </div>
@@ -602,15 +772,16 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
                               ann.type === 'text' ? ann.height : undefined,
                           }}
                           onClick={(e) => handleAnnotClick(e, ann.id)}
+                          onDoubleClick={(e) => handleAnnotDoubleClick(e, ann)}
                           onMouseDown={(e) => {
-                            if (ann.type !== 'text' || !isSelected) {
+                            if (ann.type !== 'text' || !isSelected || editingId !== ann.id) {
                               startMove(e, ann);
                             }
                           }}
                         >
                           {/* ── Text ── */}
                           {ann.type === 'text' &&
-                            (isSelected ? (
+                            (editingId === ann.id ? (
                               <textarea
                                 value={ann.content || ''}
                                 onChange={(e) => {
@@ -741,6 +912,70 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── Shortcut Legend Panel ── */}
+      {showLegend && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none flex justify-center pb-6">
+          <div className="pointer-events-auto bg-gray-900/95 backdrop-blur text-white rounded-2xl shadow-2xl px-6 py-5 max-w-2xl w-full mx-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-amber-400">Keyboard Shortcuts</h3>
+              <button
+                onClick={() => setShowLegend(false)}
+                className="text-gray-400 hover:text-white text-xs"
+              >
+                ESC to close
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-x-8 gap-y-1 text-xs">
+              {/* Tools */}
+              <div>
+                <p className="text-gray-400 font-semibold mb-1 uppercase tracking-wider text-[10px]">Tools</p>
+                {[['V', 'Select'], ['T', 'Text'], ['C', 'Check mark'], ['X', 'Cross mark'], ['L', 'Strikeout'], ['S', 'Signature']].map(([key, label]) => (
+                  <div key={key} className="flex justify-between py-0.5">
+                    <span className="text-gray-300">{label}</span>
+                    <kbd className="bg-gray-700 px-1.5 py-0.5 rounded font-mono text-[10px]">{key}</kbd>
+                  </div>
+                ))}
+              </div>
+              {/* Actions */}
+              <div>
+                <p className="text-gray-400 font-semibold mb-1 uppercase tracking-wider text-[10px]">Actions</p>
+                {[
+                  ['Ctrl+Z', 'Undo'],
+                  ['Ctrl+Shift+Z', 'Redo'],
+                  ['Ctrl+C', 'Copy'],
+                  ['Ctrl+V', 'Paste'],
+                  ['Ctrl+S', 'Save'],
+                  ['Ctrl+D', 'Download'],
+                ].map(([key, label]) => (
+                  <div key={key} className="flex justify-between py-0.5">
+                    <span className="text-gray-300">{label}</span>
+                    <kbd className="bg-gray-700 px-1.5 py-0.5 rounded font-mono text-[10px]">{key}</kbd>
+                  </div>
+                ))}
+              </div>
+              {/* Editing */}
+              <div>
+                <p className="text-gray-400 font-semibold mb-1 uppercase tracking-wider text-[10px]">Editing</p>
+                {[
+                  ['D', 'Duplicate'],
+                  ['Del', 'Delete'],
+                  ['Esc', 'Deselect'],
+                  ['[ / ]', 'Resize'],
+                  ['Arrows', 'Nudge 1px'],
+                  ['Shift+Arrows', 'Nudge 10px'],
+                ].map(([key, label]) => (
+                  <div key={key} className="flex justify-between py-0.5">
+                    <span className="text-gray-300">{label}</span>
+                    <kbd className="bg-gray-700 px-1.5 py-0.5 rounded font-mono text-[10px]">{key}</kbd>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <p className="text-[10px] text-gray-500 mt-3 text-center">On Mac, use ⌘ instead of Ctrl</p>
+          </div>
         </div>
       )}
 
