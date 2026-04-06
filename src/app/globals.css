@@ -55,6 +55,15 @@
   }
 }
 
+@keyframes resume-bar {
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
 .animate-fade-up {
   animation: fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -63,6 +72,9 @@
 }
 .animate-spinner {
   animation: spinner 0.8s linear infinite;
+}
+.animate-resume-bar {
+  animation: resume-bar 1.8s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* Animation delays */

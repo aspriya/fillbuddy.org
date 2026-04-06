@@ -1,6 +1,6 @@
 # FillBuddy — Project Description
 
-> **Last updated:** 2026-04-05
+> **Last updated:** 2026-04-06
 > **Domain:** [fillbuddy.org](https://fillbuddy.org)
 > **Status:** Active development — migrated from single-file prototype to Next.js app
 
@@ -80,7 +80,7 @@ All annotations are movable, resizable, and deletable. Full undo/redo history is
 Text annotations have a **two-stage interaction model**:
 - **Single click** → select mode (blue ring, drag/resize handles visible, can copy/delete/move/nudge)
 - **Double click** → edit mode (textarea appears for typing)
-- **Escape** while editing → back to select mode (annotation stays selected)
+- **Escape** while editing → back to select mode (annotation stays selected, tool switches to Select)
 - **Escape** while selected → deselects entirely
 
 Non-text annotations (checks, crosses, strikeout, signatures) go directly to select mode on click.
@@ -129,6 +129,7 @@ Landing Page (/)  →  Upload Page (/app)  →  PDF Annotator (/app)
 - Manages the upload → annotate flow
 - Loads PDF engines on mount via `loadEngines()`
 - Handles both `.pdf` and `.fillbuddy` file uploads
+- **Branded resume card** — when loading a `.fillbuddy` file, shows a 2-second branded card with amber gradient header, FillBuddy logo, `.fillbuddy` badge, file name, page count, annotation count, save date, and animated progress bar before transitioning to the editor
 - Passes PDF bytes + initial annotations to `PdfAnnotator`
 
 ### Upload Zone (`src/components/UploadZone.tsx`)
@@ -146,7 +147,7 @@ Landing Page (/)  →  Upload Page (/app)  →  PDF Annotator (/app)
 - Arrow key nudging (1px, Shift = 10px)
 - Comprehensive keyboard shortcuts (see Architecture section above)
 - Shortcut legend panel — floating dark overlay toggled via toolbar button or `?` key
-- **Save Progress** — exports a `.fillbuddy` JSON file containing the PDF (base64) + all annotations
+- **Save Progress** — exports a `.fillbuddy` JSON file containing the PDF (base64) + all annotations + metadata (save time, page/annotation counts). Shows a **branded success toast** with file details that auto-dismisses after 3 seconds.
 - **Download PDF** — calls `exportAnnotatedPdf()` which bakes annotations into a real PDF
 
 ### Signature Pad (`src/components/SignaturePad.tsx`)
@@ -184,6 +185,12 @@ fillbuddy.org/
 │   │   │                       #   ToolType, Annotation, PageData
 │   │   └── canvas-shim.js      # Empty module to stub Node.js 'canvas' require from pdfjs-dist
 │   │
+├── public/
+│   ├── fillbuddy-icon.svg      # App icon: amber gradient with document + pen + branding
+│   └── fillbuddy-file-icon.svg # File-type icon: document shape with .fillbuddy badge,
+│                                #   text lines, checkmark, and signature squiggle
+│                                #   (ready for PWA file_handlers integration)
+│
 ├── docs/
 │   ├── PROJECT.md              # ← This file
 │   └── competitive-analysis.md # Competitor research, Reddit pain points, SEO strategy
@@ -217,10 +224,15 @@ A JSON file containing:
   "version": 1,
   "fileName": "form.pdf",
   "pdfBase64": "<base64-encoded PDF>",
-  "annotations": [{ "id": "...", "type": "text", "page": 1, "x": 100, "y": 200, ... }]
+  "annotations": [{ "id": "...", "type": "text", "page": 1, "x": 100, "y": 200, ... }],
+  "savedAt": "2026-04-06T10:30:00.000Z",
+  "pageCount": 3,
+  "annotationCount": 12
 }
 ```
 This solves the "tattoo problem" — annotations remain fully editable after saving and reopening.
+
+The `savedAt`, `pageCount`, and `annotationCount` metadata are used by the **branded resume card** shown when reopening a `.fillbuddy` file.
 
 ### 4. Canvas Shim for pdfjs-dist
 pdfjs-dist has a `require('canvas')` for Node.js environments. The build aliases this to an empty shim (`canvas-shim.js`) via both webpack and turbopack config in `next.config.ts`.
@@ -275,8 +287,15 @@ npm run lint     # Run ESLint
 
 ---
 
-## Planned/Future Features (from project brief & competitive analysis)
+## Planned/Future Features
 
+### Immediate (Next Release)
+- **Text color changing** — Per-annotation and global-level color picker for text annotations. The global default color applies to new annotations; individual annotations can override via the toolbar or context menu.
+- **Annotation right-click context menu** — Right-clicking an annotation shows a context menu with options: Copy, Delete, Duplicate, Change Color, Change Font Size, and Bring to Front/Send to Back.
+- **Empty area right-click context menu** — Right-clicking on an empty area of the PDF page shows a context menu with Paste (enabled only when clipboard has a copied annotation).
+- **PWA with File Handling API** — Register FillBuddy as a PWA file handler for `.fillbuddy` files so the OS shows a branded icon and double-click opens the app. Icon assets (`fillbuddy-icon.svg`, `fillbuddy-file-icon.svg`) are already prepared.
+
+### Future (from project brief & competitive analysis)
 - **Auto-fill profiles** — Save personal details (name, address, DOB) once, auto-fill across forms
 - **Template library** — Pre-loaded popular government/tax forms
 - **Smart field detection via OCR** — Tesseract.js for detecting field labels on non-fillable PDFs

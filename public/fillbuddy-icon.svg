@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d97706"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+    <linearGradient id="page" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f8fafc"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded square background -->
+  <rect width="512" height="512" rx="108" fill="url(#bg)"/>
+  <!-- Document page -->
+  <rect x="140" y="80" width="232" height="300" rx="16" fill="url(#page)" opacity="0.95"/>
+  <!-- Dog-ear fold -->
+  <path d="M332 80 L372 120 L332 120 Z" fill="#e2e8f0"/>
+  <!-- Text lines on page -->
+  <rect x="172" y="130" width="140" height="8" rx="4" fill="#cbd5e1"/>
+  <rect x="172" y="154" width="168" height="8" rx="4" fill="#cbd5e1"/>
+  <rect x="172" y="178" width="120" height="8" rx="4" fill="#cbd5e1"/>
+  <rect x="172" y="202" width="155" height="8" rx="4" fill="#cbd5e1"/>
+  <!-- Check mark annotation -->
+  <circle cx="172" cy="250" r="16" fill="#16a34a" opacity="0.9"/>
+  <polyline points="163,250 169,256 181,244" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="198" y="244" width="120" height="10" rx="5" fill="#cbd5e1"/>
+  <!-- Pen/edit indicator -->
+  <g transform="translate(296, 320) rotate(-45)">
+    <rect x="-8" y="-50" width="16" height="55" rx="3" fill="white" opacity="0.95"/>
+    <rect x="-8" y="-50" width="16" height="12" rx="3" fill="#1e293b"/>
+    <polygon points="-5,5 5,5 0,14" fill="white" opacity="0.95"/>
+    <polygon points="-3,7 3,7 0,13" fill="#1e293b"/>
+  </g>
+  <!-- FillBuddy text at bottom -->
+  <text x="256" y="440" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="52" fill="white" letter-spacing="2">FILLBUDDY</text>
+</svg>

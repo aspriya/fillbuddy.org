@@ -67,6 +67,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
   const [future, setFuture] = useState<Annotation[][]>([]);
   const [clipboard, setClipboard] = useState<Annotation | null>(null);
   const [showLegend, setShowLegend] = useState(false);
+  const [saveToast, setSaveToast] = useState(false);
 
   /* ── Render PDF pages ────────────────────────────────────── */
 
@@ -392,6 +393,9 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
       fileName,
       pdfBase64: btoa(binary),
       annotations,
+      savedAt: new Date().toISOString(),
+      pageCount: pages.length,
+      annotationCount: annotations.length,
     });
     const blob = new Blob([saveData], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -402,7 +406,10 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [pdfBytes, fileName, annotations]);
+
+    setSaveToast(true);
+    setTimeout(() => setSaveToast(false), 3000);
+  }, [pdfBytes, fileName, annotations, pages.length]);
 
   /* ── Keyboard shortcuts ──────────────────────────────────── */
 
@@ -419,7 +426,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
         return;
       }
       if (e.key === 'Escape') {
-        if (editingId) { setEditingId(null); return; }
+        if (editingId) { setEditingId(null); setTool('select'); return; }
         setSelectedId(null); setShowLegend(false); return;
       }
 
@@ -989,6 +996,23 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
           }}
           onCancel={() => setShowSigPad(false)}
         />
+      )}
+
+      {/* ── Save toast ── */}
+      {saveToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-fade-up">
+          <div className="flex items-center gap-3 bg-gray-900/95 backdrop-blur text-white pl-4 pr-5 py-3 rounded-2xl shadow-2xl">
+            <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
+              <Check size={16} strokeWidth={3} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">Progress saved!</p>
+              <p className="text-xs text-gray-400">
+                {fileName.replace(/\.pdf$/i, '')}.fillbuddy &middot; {annotations.length} annotation{annotations.length !== 1 ? 's' : ''} &middot; {pages.length} page{pages.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
