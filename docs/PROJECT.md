@@ -174,8 +174,6 @@ fillbuddy.org/
 │   │   ├── PdfAnnotator.tsx    # Core annotation workspace (toolbar, page rendering, annotation CRUD)
 │   │   ├── UploadZone.tsx      # Drag-and-drop PDF / .fillbuddy upload
 │   │   └── SignaturePad.tsx    # Draw/upload signature with background removal
-│   │
-│   ├── lib/
 │   │   ├── pdf-engine.ts       # Dual-engine core: loadEngines(), extractFields(), downloadDirect(),
 │   │   │                       #   downloadOverlay(), exportAnnotatedPdf()
 │   │   ├── field-helpers.ts    # Field name cleaning, radio labels, section grouping matchers
@@ -195,10 +193,7 @@ fillbuddy.org/
 │
 ├── next.config.ts              # canvas alias for pdfjs-dist compatibility
 ├── package.json                # Dependencies and scripts
-├── tsconfig.json
-├── eslint.config.mjs
-└── postcss.config.mjs
-```
+├── 
 
 ---
 
@@ -253,15 +248,11 @@ The `.fillbuddy` file is a standard JSON blob that the app detects by file exten
 The original single-file prototype (`fillbuddy.jsx`) and legacy form-field components (`FormFiller.tsx`, `FieldRenderer.tsx`) have been removed. The form-field approach detected PDF fields and rendered them as a web form — this was replaced by the annotation-based approach.
 
 - **`field-helpers.ts`** still exists and contains `cleanFieldName()`, `getRadioLabel()`, and `getSection()` helpers designed for bank credit card application forms (specific field name mappings like `Group2` → "Title"). These are not currently used but may be reactivated if the app adds a "smart form mode".
+de Notes
 
----
+The original single-file prototype (`fillbuddy.jsx`) and legacy form-field components (`FormFiller.tsx`, `FieldRenderer.tsx`) have been removed. The form-field approach detected PDF fields and rendered them as a web form — this was replaced by the annotation-based approach.
 
-## Build & Run
-
-```bash
-npm install
-npm run dev      # Start development server
-npm run build    # Production build
+- **`field-helpers.ts`** still exists and contains `cleanFieldName()`, `getRadioLabel()`, and `getSection()` helpers designed for bank credit card application forms (specific field name mappings like `Group2` → "Title"). These are not currently used but may be reactivated if the app adds a "smart form mode"
 npm run start    # Start production server
 npm run lint     # Run ESLint
 ```

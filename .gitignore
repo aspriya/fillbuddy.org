@@ -17,6 +17,10 @@
 /.next/
 /out/
 
+# cloudflare workers build output
+/.open-next/
+/cloudflare-env.d.ts
+
 # production
 /build
 
