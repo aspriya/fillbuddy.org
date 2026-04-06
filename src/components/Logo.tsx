@@ -1,6 +1,6 @@
 /**
- * FillBuddy logomark — document with checkmark.
- * Renders as white paths on transparent background.
+ * FillBuddy logomark — pen writing "PDF".
+ * Renders as white text + dark pen on transparent background.
  * Wrap in a colored container as needed.
  */
 export default function Logo({ size = 20, className = '' }: { size?: number; className?: string }) {
@@ -13,25 +13,34 @@ export default function Logo({ size = 20, className = '' }: { size?: number; cla
       className={className}
       aria-hidden="true"
     >
-      {/* Document silhouette with folded corner */}
-      <path
-        d="M160,72 L312,72 L368,128 L368,440 C368,451 359,460 348,460 L164,460 C153,460 144,451 144,440 L144,88 C144,77 153,72 160,72 Z"
-        fill="currentColor"
+      {/* "PDF" text */}
+      <text
+        x="55" y="360"
+        fontFamily="Georgia, 'Times New Roman', serif"
+        fontWeight="900"
+        fontStyle="italic"
+        fontSize="200"
+        fill="white"
         opacity="0.95"
-      />
-      {/* Dog-ear fold */}
-      <path d="M312,72 L312,128 L368,128 Z" fill="currentColor" opacity="0.5" />
-      {/* Checkmark circle */}
-      <circle cx="310" cy="340" r="72" fill="#16a34a" />
-      {/* White checkmark */}
-      <polyline
-        points="274,340 300,366 346,314"
-        fill="none"
-        stroke="white"
-        strokeWidth="16"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+        transform="rotate(-8, 170, 310)"
+        letterSpacing="-4"
+      >PDF</text>
+      {/* Underline */}
+      <line x1="35" y1="385" x2="315" y2="345" stroke="white" strokeWidth="8" strokeLinecap="round" opacity="0.7" />
+      {/* Pen */}
+      <g transform="translate(280, 138) rotate(40) scale(1.35)">
+        <rect x="-20" y="-160" width="40" height="200" rx="4" fill="#1a1a1a" />
+        <rect x="-22" y="20" width="44" height="40" rx="3" fill="#292929" />
+        <line x1="-22" y1="30" x2="22" y2="30" stroke="#444" strokeWidth="2" />
+        <line x1="-22" y1="38" x2="22" y2="38" stroke="#444" strokeWidth="2" />
+        <line x1="-22" y1="46" x2="22" y2="46" stroke="#444" strokeWidth="2" />
+        <polygon points="-16,60 16,60 0,105" fill="#1a1a1a" />
+        <polygon points="-8,80 8,80 0,105" fill="#666" />
+        <polygon points="-3,95 3,95 0,108" fill="#333" />
+        <rect x="-20" y="-170" width="40" height="18" rx="4" fill="#333" />
+        <rect x="18" y="-168" width="6" height="70" rx="3" fill="#444" />
+        <circle cx="21" cy="-100" r="5" fill="#555" />
+      </g>
     </svg>
   );
 }
