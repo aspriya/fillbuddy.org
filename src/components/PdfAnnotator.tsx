@@ -809,6 +809,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
                                 style={{
                                   fontSize: (ann.fontSize || 14) + 'px',
                                   lineHeight: '1.3',
+                                  fontFamily: 'Helvetica, Arial, sans-serif',
                                 }}
                                 className="w-full bg-transparent outline-none resize-none text-black"
                                 rows={1}
@@ -821,6 +822,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
                                 style={{
                                   fontSize: (ann.fontSize || 14) + 'px',
                                   lineHeight: '1.3',
+                                  fontFamily: 'Helvetica, Arial, sans-serif',
                                 }}
                                 className="text-black whitespace-pre-wrap break-words"
                               >

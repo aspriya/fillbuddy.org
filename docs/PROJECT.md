@@ -24,7 +24,7 @@ The core value proposition: **privacy-first PDF filling with save-and-resume cap
 | PDF Parsing | **pdfjs-dist 3.11.x** | Handles encrypted PDFs, renders pages to canvas, extracts annotations |
 | PDF Generation | **pdf-lib 1.17.x** | Creates/modifies PDFs, embeds text/images, flattens forms |
 | Icons | **lucide-react** | |
-| Fonts | **Inter** (headings) + **Manrope** (body) | Loaded via `next/font/google` |
+| Fonts | **Inter** (headings) + **Manrope** (body) | Loaded via `next/font/google`. Annotation text uses **Helvetica/Arial** to match pdf-lib export. |
 
 ---
 
@@ -67,7 +67,7 @@ The same dual-strategy approach applies at download time:
 The app has **evolved beyond form-field filling** into a general-purpose **PDF annotation tool**. Instead of detecting and mapping form fields to a web form, the current primary workflow renders the PDF visually and lets users **click anywhere to place annotations**.
 
 Annotation types supported:
-- **Text** — Click to place, type content, adjustable font size, movable/resizable
+- **Text** — Click to place, type content, adjustable font size, movable/resizable. Rendered in Helvetica/Arial to match pdf-lib's `StandardFonts.Helvetica` used in PDF export — critical for spaced text (boxed form inputs) to align correctly.
 - **Check marks (✓)** — Adjustable size
 - **Cross marks (✗)** — Adjustable size
 - **Strikeout lines** — Horizontal lines for redlining
