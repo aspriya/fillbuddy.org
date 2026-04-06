@@ -173,9 +173,7 @@ fillbuddy.org/
 │   ├── components/
 │   │   ├── PdfAnnotator.tsx    # Core annotation workspace (toolbar, page rendering, annotation CRUD)
 │   │   ├── UploadZone.tsx      # Drag-and-drop PDF / .fillbuddy upload
-│   │   ├── SignaturePad.tsx    # Draw/upload signature with background removal
-│   │   ├── FormFiller.tsx      # Legacy form-field-based filler UI (sectioned web form)
-│   │   └── FieldRenderer.tsx   # Legacy individual field renderer (text/radio/checkbox)
+│   │   └── SignaturePad.tsx    # Draw/upload signature with background removal
 │   │
 │   ├── lib/
 │   │   ├── pdf-engine.ts       # Dual-engine core: loadEngines(), extractFields(), downloadDirect(),
@@ -194,9 +192,6 @@ fillbuddy.org/
 ├── docs/
 │   ├── PROJECT.md              # ← This file
 │   └── competitive-analysis.md # Competitor research, Reddit pain points, SEO strategy
-│
-├── fillbuddy.jsx               # Original single-file React prototype (reference only)
-├── FillBuddy-Project-Brief.md  # Original project brief + migration roadmap
 │
 ├── next.config.ts              # canvas alias for pdfjs-dist compatibility
 ├── package.json                # Dependencies and scripts
@@ -253,15 +248,11 @@ The `.fillbuddy` file is a standard JSON blob that the app detects by file exten
 
 ---
 
-## Legacy Components (Not Currently Used)
+## Legacy Code Notes
 
-The following components were part of the original form-field-based approach and remain in the codebase for potential future use:
+The original single-file prototype (`fillbuddy.jsx`) and legacy form-field components (`FormFiller.tsx`, `FieldRenderer.tsx`) have been removed. The form-field approach detected PDF fields and rendered them as a web form — this was replaced by the annotation-based approach.
 
-- **`FormFiller.tsx`** — Renders extracted form fields as a sectioned web form with search, collapsible sections, progress bar, and download button. Uses `getSection()` to group fields.
-- **`FieldRenderer.tsx`** — Renders individual form fields (text input, radio pill buttons, checkboxes) with amber-themed styling.
-- **`field-helpers.ts`** (partial) — The `cleanFieldName()`, `getRadioLabel()`, and `getSection()` helpers were designed for bank credit card application forms (specific field name mappings like `Group2` → "Title"). The section matchers are domain-specific to Sri Lankan bank forms.
-
-These could be reactivated if the app adds a "smart form mode" that detects and maps fields.
+- **`field-helpers.ts`** still exists and contains `cleanFieldName()`, `getRadioLabel()`, and `getSection()` helpers designed for bank credit card application forms (specific field name mappings like `Group2` → "Title"). These are not currently used but may be reactivated if the app adds a "smart form mode".
 
 ---
 
