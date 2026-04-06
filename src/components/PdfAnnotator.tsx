@@ -17,11 +17,25 @@ import {
   Save,
   Keyboard,
   Copy,
+  CopyPlus,
+  Palette,
+  ArrowUpToLine,
+  ArrowDownToLine,
+  ClipboardPaste,
 } from 'lucide-react';
 import type { Annotation, ToolType, PageData } from '@/lib/types';
 import SignaturePad from './SignaturePad';
 import Logo from './Logo';
+import ContextMenu, { type ContextMenuItem } from './ContextMenu';
 import { loadEngines, exportAnnotatedPdf } from '@/lib/pdf-engine';
+
+/* ── Constants ─────────────────────────────────────────────── */
+
+const COLOR_PRESETS = [
+  '#000000', '#DC2626', '#2563EB', '#16A34A',
+  '#9333EA', '#EA580C', '#CA8A04', '#0891B2',
+  '#BE185D', '#4B5563', '#1E40AF', '#7C3AED',
+];
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -43,6 +57,17 @@ interface DragInfo {
   origH: number;
 }
 
+interface ContextMenuState {
+  x: number;
+  y: number;
+  type: 'annotation' | 'page';
+  annotationId?: string;
+  pageNum?: number;
+  /** For 'page' type, the click position relative to the page div */
+  pageX?: number;
+  pageY?: number;
+}
+
 let idCounter = 0;
 function uid() {
   return 'a' + (++idCounter) + Math.random().toString(36).slice(2, 6);
@@ -58,6 +83,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
   const [editingId, setEditingId] = useState<string | null>(null);
   const [fontSize, setFontSize] = useState(14);
   const [markSize, setMarkSize] = useState(22);
+  const [globalColor, setGlobalColor] = useState('#000000');
   const [showSigPad, setShowSigPad] = useState(false);
   const [sigData, setSigData] = useState<string | null>(null);
   const [drag, setDrag] = useState<DragInfo | null>(null);
@@ -68,6 +94,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
   const [clipboard, setClipboard] = useState<Annotation | null>(null);
   const [showLegend, setShowLegend] = useState(false);
   const [saveToast, setSaveToast] = useState(false);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   /* ── Render PDF pages ────────────────────────────────────── */
 
@@ -152,6 +179,8 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
     };
   }, [drag]);
 
+
+
   /* ── Helpers ─────────────────────────────────────────────── */
 
   const pushHistory = useCallback(() => {
@@ -211,6 +240,15 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
     setEditingId(null);
   }, [selectedId, pushHistory]);
 
+  const deleteAnnotation = useCallback((id: string) => {
+    pushHistory();
+    setAnnotations((prev) => prev.filter((a) => a.id !== id));
+    if (selectedId === id) {
+      setSelectedId(null);
+      setEditingId(null);
+    }
+  }, [pushHistory, selectedId]);
+
   const duplicateSelected = useCallback(() => {
     if (!selectedId) return;
     const src = annotations.find((a) => a.id === selectedId);
@@ -222,20 +260,59 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
     setSelectedId(newId);
   }, [selectedId, annotations, pushHistory]);
 
+  const duplicateAnnotation = useCallback((id: string) => {
+    const src = annotations.find((a) => a.id === id);
+    if (!src) return;
+    pushHistory();
+    const newId = uid();
+    const dup = { ...src, id: newId, x: src.x + 20, y: src.y + 20 };
+    setAnnotations((prev) => [...prev, dup]);
+    setSelectedId(newId);
+  }, [annotations, pushHistory]);
+
   const copySelected = useCallback(() => {
     if (!selectedId) return;
     const src = annotations.find((a) => a.id === selectedId);
     if (src) setClipboard(src);
   }, [selectedId, annotations]);
 
-  const pasteClipboard = useCallback(() => {
+  const copyAnnotation = useCallback((id: string) => {
+    const src = annotations.find((a) => a.id === id);
+    if (src) setClipboard(src);
+  }, [annotations]);
+
+  const pasteClipboard = useCallback((atX?: number, atY?: number, atPage?: number) => {
     if (!clipboard) return;
     pushHistory();
     const newId = uid();
-    const pasted = { ...clipboard, id: newId, x: clipboard.x + 20, y: clipboard.y + 20 };
+    const pasted = {
+      ...clipboard,
+      id: newId,
+      x: atX ?? clipboard.x + 20,
+      y: atY ?? clipboard.y + 20,
+      page: atPage ?? clipboard.page,
+    };
     setAnnotations((prev) => [...prev, pasted]);
     setSelectedId(newId);
   }, [clipboard, pushHistory]);
+
+  const bringToFront = useCallback((id: string) => {
+    pushHistory();
+    setAnnotations((prev) => {
+      const ann = prev.find((a) => a.id === id);
+      if (!ann) return prev;
+      return [...prev.filter((a) => a.id !== id), ann];
+    });
+  }, [pushHistory]);
+
+  const sendToBack = useCallback((id: string) => {
+    pushHistory();
+    setAnnotations((prev) => {
+      const ann = prev.find((a) => a.id === id);
+      if (!ann) return prev;
+      return [ann, ...prev.filter((a) => a.id !== id)];
+    });
+  }, [pushHistory]);
 
   /* ── Page click → place annotation ───────────────────────── */
 
@@ -261,6 +338,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
           width: 200,
           height: fontSize + 6,
           fontSize,
+          color: globalColor,
           content: '',
         });
       } else if (tool === 'check') {
@@ -271,6 +349,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
           y: y - markSize / 2,
           width: markSize,
           height: markSize,
+          color: globalColor,
         });
       } else if (tool === 'cross') {
         addAnnotation({
@@ -280,6 +359,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
           y: y - markSize / 2,
           width: markSize,
           height: markSize,
+          color: globalColor,
         });
       } else if (tool === 'strikeout') {
         addAnnotation({
@@ -289,6 +369,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
           y: y - 1,
           width: 150,
           height: 3,
+          color: globalColor,
         });
       } else if (tool === 'signature') {
         if (sigData) {
@@ -306,7 +387,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
         }
       }
     },
-    [tool, fontSize, markSize, sigData, addAnnotation],
+    [tool, fontSize, markSize, sigData, globalColor, addAnnotation],
   );
 
   /* ── Annotation mouse handlers ───────────────────────────── */
@@ -357,6 +438,157 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
       origW: ann.width,
       origH: ann.height,
     });
+  };
+
+  /* ── Context menu handlers ──────────────────────────────── */
+
+  const handleAnnotContextMenu = (e: React.MouseEvent, ann: Annotation) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedId(ann.id);
+    setEditingId(null);
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      type: 'annotation',
+      annotationId: ann.id,
+    });
+  };
+
+  const handlePageContextMenu = (pageNum: number, e: React.MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('[data-ann]')) return;
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      type: 'page',
+      pageNum,
+      pageX: e.clientX - rect.left,
+      pageY: e.clientY - rect.top,
+    });
+  };
+
+  /* ── Build context menu items ───────────────────────────── */
+
+  const buildAnnotationMenuItems = (annId: string): ContextMenuItem[] => {
+    const ann = annotations.find((a) => a.id === annId);
+    if (!ann) return [];
+
+    const isTextType = ann.type === 'text';
+    const hasColor = ann.type !== 'signature';
+    const annColor = ann.color || '#000000';
+
+    const items: ContextMenuItem[] = [
+      {
+        label: 'Copy',
+        icon: <Copy size={14} />,
+        shortcut: 'Ctrl+C',
+        onClick: () => copyAnnotation(annId),
+      },
+      {
+        label: 'Duplicate',
+        icon: <CopyPlus size={14} />,
+        shortcut: 'D',
+        onClick: () => duplicateAnnotation(annId),
+      },
+      { label: '', divider: true },
+    ];
+
+    if (hasColor) {
+      items.push({
+        label: 'Color',
+        icon: <Palette size={14} />,
+        submenu: (
+          <div className="flex flex-wrap gap-1.5 py-1">
+            {COLOR_PRESETS.map((c) => (
+              <button
+                key={c}
+                onClick={() => {
+                  pushHistory();
+                  updateAnnotation(annId, { color: c });
+                  setContextMenu(null);
+                }}
+                className={`w-5 h-5 rounded-full border-2 transition-transform hover:scale-125 ${
+                  annColor === c ? 'border-white scale-110' : 'border-transparent'
+                }`}
+                style={{ backgroundColor: c }}
+                title={c}
+              />
+            ))}
+          </div>
+        ),
+      });
+    }
+
+    if (isTextType) {
+      items.push({
+        label: 'Font Size',
+        icon: <Type size={14} />,
+        shortcut: '[ / ]',
+        submenu: (
+          <div className="flex items-center gap-2 py-1">
+            <button
+              onClick={() => {
+                pushHistory();
+                updateAnnotation(annId, { fontSize: Math.max(8, (ann.fontSize || 14) - 1) });
+              }}
+              className="p-1 hover:bg-white/10 rounded text-gray-300"
+            >
+              <Minus size={12} />
+            </button>
+            <span className="text-xs font-mono text-gray-300 w-5 text-center">
+              {ann.fontSize || 14}
+            </span>
+            <button
+              onClick={() => {
+                pushHistory();
+                updateAnnotation(annId, { fontSize: Math.min(48, (ann.fontSize || 14) + 1) });
+              }}
+              className="p-1 hover:bg-white/10 rounded text-gray-300"
+            >
+              <Plus size={12} />
+            </button>
+          </div>
+        ),
+      });
+    }
+
+    items.push(
+      { label: '', divider: true },
+      {
+        label: 'Bring to Front',
+        icon: <ArrowUpToLine size={14} />,
+        onClick: () => bringToFront(annId),
+      },
+      {
+        label: 'Send to Back',
+        icon: <ArrowDownToLine size={14} />,
+        onClick: () => sendToBack(annId),
+      },
+      { label: '', divider: true },
+      {
+        label: 'Delete',
+        icon: <Trash2 size={14} />,
+        shortcut: 'Del',
+        danger: true,
+        onClick: () => deleteAnnotation(annId),
+      },
+    );
+
+    return items;
+  };
+
+  const buildPageMenuItems = (pageX: number, pageY: number, pageNum: number): ContextMenuItem[] => {
+    return [
+      {
+        label: 'Paste',
+        icon: <ClipboardPaste size={14} />,
+        shortcut: 'Ctrl+V',
+        disabled: !clipboard,
+        onClick: () => pasteClipboard(pageX, pageY, pageNum),
+      },
+    ];
   };
 
   /* ── Download ────────────────────────────────────────────── */
@@ -426,6 +658,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
         return;
       }
       if (e.key === 'Escape') {
+        if (contextMenu) { setContextMenu(null); return; }
         if (editingId) { setEditingId(null); setTool('select'); return; }
         setSelectedId(null); setShowLegend(false); return;
       }
@@ -500,7 +733,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [deleteSelected, undo, redo, copySelected, pasteClipboard, duplicateSelected, handleSaveProgress, handleDownload, tool, sigData, selectedId, editingId, annotations, updateAnnotation]);
+  }, [deleteSelected, undo, redo, copySelected, pasteClipboard, duplicateSelected, handleSaveProgress, handleDownload, tool, sigData, selectedId, editingId, annotations, updateAnnotation, contextMenu]);
 
   /* ── Toolbar config ──────────────────────────────────────── */
 
@@ -564,7 +797,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
           </div>
         </div>
 
-        {/* ── Toolbar ── */}
+        {/* ── Toolbar Row 1: Tools + Actions ── */}
         <div className="border-t bg-gray-50 px-4 py-2">
           <div className="flex items-center gap-1.5 max-w-5xl mx-auto flex-wrap">
             {tools.map((t) => (
@@ -598,86 +831,6 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
               </button>
             )}
 
-            <div className="w-px h-6 bg-gray-300 mx-1" />
-
-            {/* Font size */}
-            {tool === 'text' && (
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-gray-500">Font:</span>
-                <button
-                  onClick={() => setFontSize((s) => Math.max(8, s - 1))}
-                  className="p-1 hover:bg-gray-200 rounded"
-                >
-                  <Minus size={14} />
-                </button>
-                <span className="text-sm font-mono w-6 text-center">
-                  {fontSize}
-                </span>
-                <button
-                  onClick={() => setFontSize((s) => Math.min(48, s + 1))}
-                  className="p-1 hover:bg-gray-200 rounded"
-                >
-                  <Plus size={14} />
-                </button>
-              </div>
-            )}
-
-            {/* Mark size */}
-            {(tool === 'check' || tool === 'cross') && (
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-gray-500">Size:</span>
-                <button
-                  onClick={() => setMarkSize((s) => Math.max(10, s - 2))}
-                  className="p-1 hover:bg-gray-200 rounded"
-                >
-                  <Minus size={14} />
-                </button>
-                <span className="text-sm font-mono w-6 text-center">
-                  {markSize}
-                </span>
-                <button
-                  onClick={() => setMarkSize((s) => Math.min(60, s + 2))}
-                  className="p-1 hover:bg-gray-200 rounded"
-                >
-                  <Plus size={14} />
-                </button>
-              </div>
-            )}
-
-            {/* Selected annotation font-size adjustment */}
-            {selectedId &&
-              (() => {
-                const sel = annotations.find((a) => a.id === selectedId);
-                return sel?.type === 'text' ? (
-                  <div className="flex items-center gap-1 ml-2">
-                    <span className="text-xs text-blue-600">Size:</span>
-                    <button
-                      onClick={() =>
-                        updateAnnotation(sel.id, {
-                          fontSize: Math.max(8, (sel.fontSize || 14) - 1),
-                        })
-                      }
-                      className="p-1 hover:bg-blue-100 rounded text-blue-600"
-                    >
-                      <Minus size={14} />
-                    </button>
-                    <span className="text-sm font-mono w-6 text-center text-blue-600">
-                      {sel.fontSize || 14}
-                    </span>
-                    <button
-                      onClick={() =>
-                        updateAnnotation(sel.id, {
-                          fontSize: Math.min(48, (sel.fontSize || 14) + 1),
-                        })
-                      }
-                      className="p-1 hover:bg-blue-100 rounded text-blue-600"
-                    >
-                      <Plus size={14} />
-                    </button>
-                  </div>
-                ) : null;
-              })()}
-
             <div className="flex-1" />
 
             {/* Undo */}
@@ -701,15 +854,14 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
             </button>
 
             {/* Delete */}
-            {selectedId && (
-              <button
-                onClick={deleteSelected}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-red-600 hover:bg-red-50"
-                title="Delete (Del)"
-              >
-                <Trash2 size={14} /> Delete
-              </button>
-            )}
+            <button
+              onClick={deleteSelected}
+              disabled={!selectedId}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-red-600 hover:bg-red-50 disabled:opacity-30 disabled:hover:bg-transparent"
+              title="Delete (Del)"
+            >
+              <Trash2 size={14} /> Delete
+            </button>
 
             {/* Shortcuts legend toggle */}
             <button
@@ -723,6 +875,138 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
             </button>
           </div>
         </div>
+
+        {/* ── Toolbar Row 2: Color + Size (always visible) ── */}
+        {(() => {
+          const sel = selectedId ? annotations.find((a) => a.id === selectedId) : null;
+          const isEditingAnnotation = !!sel;
+          // What type are we working with? Selected annotation type, or the current tool
+          const activeType = sel?.type ?? (tool === 'text' ? 'text' : tool === 'check' ? 'check' : tool === 'cross' ? 'cross' : tool === 'strikeout' ? 'strikeout' : null);
+          const showColor = activeType && activeType !== 'signature';
+          const showFontSize = activeType === 'text';
+          const showMarkSize = activeType === 'check' || activeType === 'cross';
+          const showSize = showFontSize || showMarkSize;
+
+          // Current effective values
+          const currentColor = sel ? (sel.color || '#000000') : globalColor;
+          const currentFontSize = sel ? (sel.fontSize || 14) : fontSize;
+          const currentMarkSize = sel ? Math.round(sel.width) : markSize;
+
+          // Color change handler
+          const handleColorChange = (c: string) => {
+            if (isEditingAnnotation && sel) {
+              pushHistory();
+              updateAnnotation(sel.id, { color: c });
+            }
+            setGlobalColor(c);
+          };
+
+          // Size change handlers
+          const handleFontSizeChange = (delta: number) => {
+            const newSize = Math.max(8, Math.min(48, currentFontSize + delta));
+            if (isEditingAnnotation && sel) {
+              pushHistory();
+              updateAnnotation(sel.id, { fontSize: newSize });
+            }
+            setFontSize(newSize);
+          };
+
+          const handleMarkSizeChange = (delta: number) => {
+            if (isEditingAnnotation && sel) {
+              pushHistory();
+              updateAnnotation(sel.id, {
+                width: Math.max(10, Math.min(60, sel.width + delta)),
+                height: Math.max(10, Math.min(60, sel.height + delta)),
+              });
+            }
+            setMarkSize((s) => Math.max(10, Math.min(60, s + delta)));
+          };
+
+          // Highlight style when editing a selected annotation
+          const accent = isEditingAnnotation ? 'text-blue-600' : 'text-gray-500';
+          const accentBtn = isEditingAnnotation ? 'hover:bg-blue-100 text-blue-600' : 'hover:bg-gray-200 text-gray-500';
+
+          return (
+            <div className="border-t bg-gray-50/80 px-4 py-1.5">
+              <div className="flex items-center gap-1.5 max-w-5xl mx-auto flex-wrap">
+                {/* Color swatches */}
+                {showColor ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-xs ${accent} font-medium`}>Color:</span>
+                    <div className="flex gap-1">
+                      {COLOR_PRESETS.map((c) => (
+                        <button
+                          key={c}
+                          onClick={() => handleColorChange(c)}
+                          className={`w-5 h-5 rounded-full border-2 transition-transform hover:scale-125 ${
+                            currentColor === c
+                              ? (isEditingAnnotation ? 'border-blue-500 scale-110' : 'border-amber-500 scale-110')
+                              : 'border-gray-200'
+                          }`}
+                          style={{ backgroundColor: c }}
+                          title={c}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 opacity-30">
+                    <span className="text-xs text-gray-500 font-medium">Color:</span>
+                    <div className="flex gap-1">
+                      {COLOR_PRESETS.slice(0, 6).map((c) => (
+                        <div
+                          key={c}
+                          className="w-5 h-5 rounded-full border-2 border-gray-200"
+                          style={{ backgroundColor: c }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="w-px h-5 bg-gray-300 mx-2" />
+
+                {/* Size control */}
+                {showSize ? (
+                  <div className="flex items-center gap-1">
+                    <span className={`text-xs ${accent} font-medium`}>Size:</span>
+                    <button
+                      onClick={() => showFontSize ? handleFontSizeChange(-1) : handleMarkSizeChange(-2)}
+                      className={`p-1 rounded ${accentBtn}`}
+                    >
+                      <Minus size={14} />
+                    </button>
+                    <span className={`text-sm font-mono w-6 text-center ${accent}`}>
+                      {showFontSize ? currentFontSize : currentMarkSize}
+                    </span>
+                    <button
+                      onClick={() => showFontSize ? handleFontSizeChange(1) : handleMarkSizeChange(2)}
+                      className={`p-1 rounded ${accentBtn}`}
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 opacity-30">
+                    <span className="text-xs text-gray-500 font-medium">Size:</span>
+                    <div className="p-1 text-gray-400"><Minus size={14} /></div>
+                    <span className="text-sm font-mono w-6 text-center text-gray-400">—</span>
+                    <div className="p-1 text-gray-400"><Plus size={14} /></div>
+                  </div>
+                )}
+
+                <div className="flex-1" />
+
+                {/* Editing-mode indicator */}
+                {isEditingAnnotation && sel && (
+                  <span className="text-[10px] text-blue-500 font-medium uppercase tracking-wider">
+                    Editing {sel.type}
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── Pages ── */}
@@ -738,6 +1022,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
                 className="relative shadow-lg bg-white"
                 style={{ width: pg.displayWidth, height: pg.displayHeight }}
                 onClick={(e) => handlePageClick(pg.pageNum, e)}
+                onContextMenu={(e) => handlePageContextMenu(pg.pageNum, e)}
               >
                 {/* PDF page image */}
                 <img
@@ -759,6 +1044,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
                     .filter((a) => a.page === pg.pageNum)
                     .map((ann) => {
                       const isSelected = selectedId === ann.id;
+                      const annColor = ann.color || '#000000';
 
                       return (
                         <div
@@ -780,7 +1066,9 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
                           }}
                           onClick={(e) => handleAnnotClick(e, ann.id)}
                           onDoubleClick={(e) => handleAnnotDoubleClick(e, ann)}
+                          onContextMenu={(e) => handleAnnotContextMenu(e, ann)}
                           onMouseDown={(e) => {
+                            if (e.button === 2) return; // don't start drag on right-click
                             if (ann.type !== 'text' || !isSelected || editingId !== ann.id) {
                               startMove(e, ann);
                             }
@@ -810,8 +1098,9 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
                                   fontSize: (ann.fontSize || 14) + 'px',
                                   lineHeight: '1.3',
                                   fontFamily: 'Helvetica, Arial, sans-serif',
+                                  color: annColor,
                                 }}
-                                className="w-full bg-transparent outline-none resize-none text-black"
+                                className="w-full bg-transparent outline-none resize-none"
                                 rows={1}
                                 autoFocus
                                 onClick={(e) => e.stopPropagation()}
@@ -823,8 +1112,9 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
                                   fontSize: (ann.fontSize || 14) + 'px',
                                   lineHeight: '1.3',
                                   fontFamily: 'Helvetica, Arial, sans-serif',
+                                  color: annColor,
                                 }}
-                                className="text-black whitespace-pre-wrap break-words"
+                                className="whitespace-pre-wrap break-words"
                               >
                                 {ann.content || ''}
                               </div>
@@ -836,7 +1126,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
                               viewBox="0 0 24 24"
                               className="w-full h-full"
                               fill="none"
-                              stroke="black"
+                              stroke={annColor}
                               strokeWidth="3"
                               strokeLinecap="round"
                               strokeLinejoin="round"
@@ -851,7 +1141,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
                               viewBox="0 0 24 24"
                               className="w-full h-full"
                               fill="none"
-                              stroke="black"
+                              stroke={annColor}
                               strokeWidth="3"
                               strokeLinecap="round"
                               strokeLinejoin="round"
@@ -863,7 +1153,10 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
 
                           {/* ── Strikeout ── */}
                           {ann.type === 'strikeout' && (
-                            <div className="w-full h-full bg-black" />
+                            <div
+                              className="w-full h-full"
+                              style={{ backgroundColor: annColor }}
+                            />
                           )}
 
                           {/* ── Signature ── */}
@@ -922,6 +1215,24 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
             </div>
           ))}
         </div>
+      )}
+
+      {/* ── Context Menu ── */}
+      {contextMenu && contextMenu.type === 'annotation' && contextMenu.annotationId && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={buildAnnotationMenuItems(contextMenu.annotationId)}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
+      {contextMenu && contextMenu.type === 'page' && contextMenu.pageNum != null && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={buildPageMenuItems(contextMenu.pageX!, contextMenu.pageY!, contextMenu.pageNum)}
+          onClose={() => setContextMenu(null)}
+        />
       )}
 
       {/* ── Shortcut Legend Panel ── */}

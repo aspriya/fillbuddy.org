@@ -31,6 +31,7 @@ export interface Annotation {
   height: number;  // display px
   content?: string;
   fontSize?: number;
+  color?: string;      // hex color, e.g. '#DC2626'. Defaults to '#000000'
   imageData?: string;
 }
 

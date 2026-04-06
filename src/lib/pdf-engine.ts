@@ -258,6 +258,15 @@ export async function downloadOverlay(
 
 /* ── Export: Bake annotations onto PDF ────────────────────── */
 
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const h = hex.replace('#', '');
+  return {
+    r: parseInt(h.substring(0, 2), 16) / 255,
+    g: parseInt(h.substring(2, 4), 16) / 255,
+    b: parseInt(h.substring(4, 6), 16) / 255,
+  };
+}
+
 async function drawAnnotationsOnPage(
   page: any,
   doc: any,
@@ -273,6 +282,8 @@ async function drawAnnotationsOnPage(
     const pdfW = ann.width / sc;
     const pdfH = ann.height / sc;
     const topPdfY = pgH - ann.y / sc;
+    const { r, g, b } = hexToRgb(ann.color || '#000000');
+    const clr = rgbFn(r, g, b);
 
     if (ann.type === 'text' && ann.content) {
       const pdfFS = (ann.fontSize || 14) / sc;
@@ -285,7 +296,7 @@ async function drawAnnotationsOnPage(
           y: topPdfY - pdfFS - i * lh,
           size: pdfFS,
           font,
-          color: rgbFn(0, 0, 0),
+          color: clr,
         });
       });
     } else if (ann.type === 'check') {
@@ -293,22 +304,22 @@ async function drawAnnotationsOnPage(
       const cy = topPdfY - pdfH / 2;
       const s = Math.min(pdfW, pdfH) * 0.4;
       const th = Math.max(1, pdfW / 12);
-      page.drawLine({ start: { x: cx - s, y: cy }, end: { x: cx - s * 0.2, y: cy - s * 0.7 }, thickness: th, color: rgbFn(0, 0, 0) });
-      page.drawLine({ start: { x: cx - s * 0.2, y: cy - s * 0.7 }, end: { x: cx + s, y: cy + s * 0.5 }, thickness: th, color: rgbFn(0, 0, 0) });
+      page.drawLine({ start: { x: cx - s, y: cy }, end: { x: cx - s * 0.2, y: cy - s * 0.7 }, thickness: th, color: clr });
+      page.drawLine({ start: { x: cx - s * 0.2, y: cy - s * 0.7 }, end: { x: cx + s, y: cy + s * 0.5 }, thickness: th, color: clr });
     } else if (ann.type === 'cross') {
       const cx = pdfX + pdfW / 2;
       const cy = topPdfY - pdfH / 2;
       const s = Math.min(pdfW, pdfH) * 0.35;
       const th = Math.max(1, pdfW / 12);
-      page.drawLine({ start: { x: cx - s, y: cy - s }, end: { x: cx + s, y: cy + s }, thickness: th, color: rgbFn(0, 0, 0) });
-      page.drawLine({ start: { x: cx - s, y: cy + s }, end: { x: cx + s, y: cy - s }, thickness: th, color: rgbFn(0, 0, 0) });
+      page.drawLine({ start: { x: cx - s, y: cy - s }, end: { x: cx + s, y: cy + s }, thickness: th, color: clr });
+      page.drawLine({ start: { x: cx - s, y: cy + s }, end: { x: cx + s, y: cy - s }, thickness: th, color: clr });
     } else if (ann.type === 'strikeout') {
       const lineY = topPdfY - pdfH / 2;
       page.drawLine({
         start: { x: pdfX, y: lineY },
         end: { x: pdfX + pdfW, y: lineY },
         thickness: Math.max(0.5, pdfH),
-        color: rgbFn(0, 0, 0),
+        color: clr,
       });
     } else if (ann.type === 'signature' && ann.imageData) {
       const res = await fetch(ann.imageData);
