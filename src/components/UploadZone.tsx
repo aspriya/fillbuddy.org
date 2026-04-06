@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { Upload, ArrowLeft, AlertCircle, Layers } from 'lucide-react';
+import { Upload, ArrowLeft, AlertCircle } from 'lucide-react';
+import Logo from './Logo';
 
 interface Props {
   onUpload: (file: File) => void;
@@ -36,7 +37,7 @@ export default function UploadZone({ onUpload, onBack, loading, error }: Props) 
         </button>
         <div className="flex items-center gap-2 font-heading text-lg font-extrabold text-slate-900 tracking-tight">
           <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-600 to-amber-400 flex items-center justify-center">
-            <Layers size={14} className="text-white" strokeWidth={2.5} />
+            <Logo size={14} className="text-white" />
           </div>
           FillBuddy
         </div>

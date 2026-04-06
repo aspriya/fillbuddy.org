@@ -1,11 +1,11 @@
 import Link from 'next/link';
+import Logo from '@/components/Logo';
 import {
   Shield,
   Type,
   MousePointerClick,
   ChevronRight,
   Sparkles,
-  Layers,
   Lock,
   FileText,
   PenLine,
@@ -99,7 +99,7 @@ export default function LandingPage() {
       <nav className="animate-fade-in flex items-center justify-between px-6 sm:px-10 py-6 max-w-6xl mx-auto">
         <div className="flex items-center gap-2 font-heading text-[22px] font-extrabold tracking-tight text-gray-100">
           <div className="w-9 h-9 rounded-[10px] bg-gradient-to-br from-amber-600 to-amber-400 flex items-center justify-center">
-            <Layers size={20} className="text-black" strokeWidth={2.5} />
+            <Logo size={20} className="text-white" />
           </div>
           FillBuddy
         </div>
@@ -424,7 +424,7 @@ export default function LandingPage() {
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-600">
           <div className="flex items-center gap-2 font-heading font-bold text-gray-500">
             <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-amber-600 to-amber-400 flex items-center justify-center">
-              <Layers size={12} className="text-black" strokeWidth={2.5} />
+              <Logo size={12} className="text-white" />
             </div>
             FillBuddy
           </div>

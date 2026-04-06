@@ -12,7 +12,6 @@ import {
   ArrowLeft,
   Minus,
   Plus,
-  Layers,
   RotateCcw,
   Redo2,
   Save,
@@ -21,6 +20,7 @@ import {
 } from 'lucide-react';
 import type { Annotation, ToolType, PageData } from '@/lib/types';
 import SignaturePad from './SignaturePad';
+import Logo from './Logo';
 import { loadEngines, exportAnnotatedPdf } from '@/lib/pdf-engine';
 
 /* ── Types ─────────────────────────────────────────────────── */
@@ -533,7 +533,7 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
             </button>
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-600 to-amber-400 flex items-center justify-center">
-                <Layers size={14} className="text-black" strokeWidth={2.5} />
+                <Logo size={14} className="text-white" />
               </div>
               <span className="font-heading font-bold text-gray-900 hidden sm:inline">
                 FillBuddy

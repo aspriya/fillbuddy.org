@@ -6,7 +6,8 @@ import { loadEngines } from '@/lib/pdf-engine';
 import UploadZone from '@/components/UploadZone';
 import PdfAnnotator from '@/components/PdfAnnotator';
 import type { Annotation } from '@/lib/types';
-import { Layers, FileText, PenLine, Clock } from 'lucide-react';
+import { FileText, PenLine, Clock } from 'lucide-react';
+import Logo from '@/components/Logo';
 
 interface FillbuddyMeta {
   fileName: string;
@@ -89,7 +90,7 @@ export default function AppPage() {
             <div className="bg-gradient-to-br from-amber-500 via-amber-600 to-orange-600 px-6 py-8 flex flex-col items-center">
               <div className="w-16 h-16 bg-white/20 backdrop-blur rounded-2xl flex items-center justify-center mb-4">
                 <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center">
-                  <Layers size={24} className="text-amber-600" strokeWidth={2.5} />
+                  <Logo size={24} className="text-amber-600" />
                 </div>
               </div>
               <span className="text-xs font-bold text-amber-100 tracking-widest uppercase">.fillbuddy</span>

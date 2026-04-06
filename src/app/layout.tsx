@@ -21,6 +21,14 @@ export const metadata: Metadata = {
     'browser pdf editor',
     'client side pdf filler',
   ],
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: '48x48' },
+      { url: '/logo.svg', type: 'image/svg+xml' },
+    ],
+    apple: '/apple-touch-icon.png',
+  },
+  manifest: '/manifest.json',
   openGraph: {
     title: 'FillBuddy — Fill PDFs Privately. No Uploads. Free Forever.',
     description:
