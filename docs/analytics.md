@@ -351,6 +351,18 @@ Skip both on day one; add when you see noise in the data.
 
 Server component, gated by a single shared password (`ANALYTICS_ADMIN_TOKEN`) checked against a cookie. Not for end users — for you only. Worth noting because it does NOT need Better Auth/Clerk yet.
 
+### Auth implementation (chosen approach)
+
+We use a **shared-token + signed-cookie** scheme, not bcrypt:
+
+- `ANALYTICS_ADMIN_TOKEN` is a long random secret (Wrangler secret in prod, `.env.local` in dev — never `vars` in `wrangler.jsonc`).
+- Login form POSTs `token` to `/admin/analytics/login`, the route compares with **constant-time equality**.
+- On success, the route sets an `HttpOnly; SameSite=Strict; Path=/admin` cookie containing `sha256(token + ":fb-admin-v1")` in hex. The cookie value is meaningless without knowing the secret.
+- Every dashboard request re-derives the expected cookie value from the env secret and compares — no server-side session storage needed.
+- The `Secure` flag is added only when `request.nextUrl.protocol === 'https:'` so `next dev` over plain http still works.
+
+Why not bcrypt? The secret here is pre-shared, not a user-typed weak password, so a slow KDF buys nothing. Web Crypto SHA-256 is simpler, faster, and zero extra deps.
+
 ### Pages / cards
 
 1. **Today vs yesterday vs 7-day vs 30-day** counters: uploads, downloads, saves, resumes.
