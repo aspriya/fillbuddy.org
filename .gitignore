@@ -21,6 +21,9 @@
 /.open-next/
 /cloudflare-env.d.ts
 
+# wrangler local dev state (Miniflare-backed D1, KV, R2 etc.)
+/.wrangler/
+
 # production
 /build
 

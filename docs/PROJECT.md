@@ -1,6 +1,6 @@
 # FillBuddy — Project Description
 
-> **Last updated:** 2026-04-06
+> **Last updated:** 2026-04-27
 > **Domain:** [fillbuddy.org](https://fillbuddy.org)
 > **Status:** Active development — migrated from single-file prototype to Next.js app
 
@@ -25,6 +25,8 @@ The core value proposition: **privacy-first PDF filling with save-and-resume cap
 | PDF Generation | **pdf-lib 1.17.x**                              | Creates/modifies PDFs, embeds text/images, flattens forms                                                |
 | Icons          | **lucide-react**                                |                                                                                                          |
 | Fonts          | **Inter** (headings) + **Manrope** (body) | Loaded via `next/font/google`. Annotation text uses **Helvetica/Arial** to match pdf-lib export. |
+| Hosting        | **Cloudflare Workers** via `@opennextjs/cloudflare` | See `docs/DEPLOYMENT.md`. Single-Worker frontend + (planned) API routes. |
+| Analytics DB   | **Cloudflare D1** (planned)               | Anonymous usage events only — see `docs/analytics.md`. Strictly no PDF content, no filenames, no IPs. Country-level geo only. |
 
 ---
 
@@ -221,8 +223,10 @@ fillbuddy.org/
 
 ## Key Design Decisions
 
-### 1. Client-Side Only — No Backend
-All PDF processing happens in the browser. There is no API, no server-side processing, no database. This is the core privacy differentiator.
+### 1. Client-Side Only for PDF Processing
+All PDF parsing, annotating, and exporting happens in the browser. The PDF bytes never leave the user's device — this is the core privacy differentiator and the headline marketing claim.
+
+A tiny **anonymous analytics endpoint** (`/api/events` → Cloudflare D1) is planned to count usage (uploads, downloads, saves, resumes) per day/hour/country for product decisions. It records categorical metadata only (event type, country code, device/browser/OS family, page count, file-size bucket, anonymous random IDs). It never sees the PDF, the filename, the annotations, or the user's IP address. See `docs/analytics.md` for the full spec, including the explicit list of fields that are *not* collected. This does not contradict the client-side promise: the file itself still never leaves the browser.
 
 ### 2. Annotation-First (Not Form-Field-First)
 The original prototype (`fillbuddy.jsx`) detected PDF form fields and rendered them as a web form. The current Next.js app **pivoted to an annotation-based approach** — rendering the PDF visually and letting users click-to-place text/marks anywhere. This works on **any** PDF, not just fillable ones.
@@ -288,6 +292,9 @@ The original single-file prototype (`fillbuddy.jsx`) and legacy form-field compo
 ---
 
 ## Planned/Future Features
+
+### Planned (next infra work)
+- **Anonymous usage analytics on Cloudflare D1** — Track per-day and per-hour counts of `pdf_upload`, `pdf_download`, `fillbuddy_save`, and `fillbuddy_upload` events with country-level geo and device/browser categories, so we can measure the upload→download funnel and where users come from. No PDF content, no filenames, no IPs are stored. Includes a password-gated `/admin/analytics` SSR dashboard. Full plan in `docs/analytics.md`.
 
 ### Recently Implemented
 - ~~**Text color changing**~~ ✅ — 12-color preset palette for all annotation types (text, check, cross, strikeout). Unified toolbar row 2 controls both global defaults and per-annotation overrides. Colors export correctly to PDF via `hexToRgb()` conversion. Backward-compatible with existing `.fillbuddy` files (absent `color` defaults to black).

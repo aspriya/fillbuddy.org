@@ -1,14 +1,26 @@
 {
-  "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "fillbuddy",
-  "main": ".open-next/worker.js",
-  "compatibility_date": "2026-04-06",
-  "compatibility_flags": ["nodejs_compat"],
-  "assets": {
-    "directory": ".open-next/assets",
-    "binding": "ASSETS"
-  },
-  "observability": {
-    "enabled": true
-  }
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "fillbuddy",
+	"main": ".open-next/worker.js",
+	"compatibility_date": "2026-04-06",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	},
+	"observability": {
+		"enabled": true
+	},
+	// Analytics database — see docs/analytics.md.
+	// After running `npx wrangler d1 create fillbuddy-analytics`, paste the
+	// returned UUID into `database_id` below, then run `npm run cf-typegen`.
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "fillbuddy-analytics",
+			"database_id": "d08c5991-114d-436e-853a-21dcc55e09d1"
+		}
+	]
 }
