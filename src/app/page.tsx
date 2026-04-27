@@ -30,6 +30,11 @@ const jsonLd = {
   applicationCategory: 'UtilitiesApplication',
   operatingSystem: 'Any (browser-based)',
   offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  publisher: {
+    '@type': 'Organization',
+    name: 'DevTuskers',
+    url: 'https://devtuskers.com',
+  },
   description:
     'Fill, annotate & sign any PDF directly in your browser. No uploads, no accounts, no watermarks. Save progress and resume later.',
   featureList: [
@@ -431,7 +436,16 @@ export default function LandingPage() {
             FillBuddy
           </div>
           <p>
-            100% free &amp; open. Built for people who just need to fill a damn PDF.
+            A product by{' '}
+            <a
+              href="https://devtuskers.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-gray-400 hover:text-amber-400 transition-colors"
+            >
+              DevTuskers
+            </a>
+            . 100% free &amp; open.
           </p>
           <div className="flex items-center gap-4">
             <Link href="/privacy" className="hover:text-gray-400 transition-colors">

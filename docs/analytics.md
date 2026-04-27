@@ -1,9 +1,18 @@
 # FillBuddy — Anonymous Usage Analytics
 
 > **Last updated:** 2026-04-27
-> **Status:** Planned — not yet implemented
-> **Storage:** Cloudflare D1 (binding `DB`)
+> **Status:** Phases A, B, C shipped. Phase D deferred.
+> **Storage:** Cloudflare D1 (binding `DB`, database `fillbuddy-analytics`)
+> **Dashboard:** [`/admin/analytics`](https://fillbuddy.org/admin/analytics) (gated by `ANALYTICS_ADMIN_TOKEN`)
 > **Privacy posture:** No PDF bytes, no annotation content, no filenames, no IP addresses, no exact user agents. Country-level geo only. Random anonymous IDs only.
+>
+> **Source of truth (live code, not this doc):**
+> - Capture client: `src/lib/analytics/{ids,ua,buckets,client,schema}.ts`
+> - Ingest endpoint: `src/app/api/events/route.ts`
+> - Dashboard queries: `src/lib/analytics/queries.ts`
+> - Dashboard UI: `src/app/admin/analytics/page.tsx`, `src/components/admin/*`
+> - Auth: `src/lib/analytics/auth.ts`
+> - Schema migration: `drizzle/0001_analytics.sql`
 
 ---
 
@@ -185,156 +194,74 @@ Don't build this on day one. Premature optimisation.
 
 ---
 
-## 6. Wrangler config additions
+## 6. Wrangler config & provisioning
 
-Append to `wrangler.jsonc`:
+The D1 binding lives in `wrangler.jsonc` under `d1_databases` (binding `DB`, database `fillbuddy-analytics`). The schema lives in `drizzle/0001_analytics.sql` and has been applied to both `--local` and `--remote`.
 
-```jsonc
-"d1_databases": [
-  { "binding": "DB", "database_name": "fillbuddy-analytics", "database_id": "<filled-after-create>" }
-],
-"vars": {
-  "ANALYTICS_ENABLED": "true"
-}
-```
-
-Provisioning steps (single time, run locally with `CLOUDFLARE_API_TOKEN` set per `docs/cloudflare-automation.md`):
-
-```bash
-npx wrangler d1 create fillbuddy-analytics
-# -> writes database_id back into wrangler.jsonc under d1_databases[0]
-npx wrangler d1 execute fillbuddy-analytics --local  --file ./drizzle/0001_analytics.sql
-npx wrangler d1 execute fillbuddy-analytics --remote --file ./drizzle/0001_analytics.sql
-npx wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts
-```
-
-Admin password is a secret, not a `var`:
+The admin token is a Wrangler secret (not a `var`):
 
 ```bash
 npx wrangler secret put ANALYTICS_ADMIN_TOKEN
 ```
 
+For local dev the same value goes in `.env.local` (gitignored; see `.env.local.example`).
+
 ---
 
 ## 7. Client-side capture
 
-### File layout
-
-```
-src/lib/analytics/
-  ids.ts          # getVisitorId(), getSessionId(), opt-out check
-  ua.ts           # categorise navigator.userAgent → {device, browser, os}
-  buckets.ts      # fileSizeBucket(bytes)
-  client.ts       # trackEvent(type, payload) — public API
-  schema.ts       # Zod schema shared with the route handler
-```
-
-### `client.ts` contract
+Live code: `src/lib/analytics/{ids,ua,buckets,client,schema}.ts`. Public API:
 
 ```ts
-type EventType =
-  | 'landing_view' | 'app_open'
-  | 'pdf_upload' | 'fillbuddy_upload'
-  | 'pdf_download' | 'fillbuddy_save';
-
 trackEvent(type: EventType, payload?: {
   engineMode?: 'direct' | 'overlay';
   pageCount?: number;
   annotationCount?: number;
-  fileSizeBytes?: number;          // bucketed before send
+  fileSizeBytes?: number;     // bucketed before send
   wasEncrypted?: boolean;
-  durationMs?: number;
 }): void
 ```
 
-Behaviour:
+Key invariants enforced in code:
 
-- Reads `localStorage['fb_visitor_id']` (creates a UUID if missing).
-- Reads `sessionStorage['fb_session_id']` (creates a UUID if missing).
-- Skips entirely if `localStorage['fb_analytics_opt_out'] === '1'` (Do-Not-Track equivalent for power users; documented in privacy page).
-- Resolves `referrer_host` from `document.referrer` (host part only, no path or query).
-- POSTs JSON to `/api/events` via `navigator.sendBeacon` (fire-and-forget, survives page unload). Fallback to `fetch(..., { keepalive: true })`.
-- Never blocks UX. Never throws into caller.
+- Visitor ID lives in `localStorage['fb_visitor_id']` (persistent, anonymous UUID).
+- Session ID lives in `sessionStorage['fb_session_id']` (fresh per tab).
+- Skips entirely if `localStorage['fb_analytics_opt_out'] === '1'`.
+- `referrer_host` derived from `document.referrer` host part only; same-origin referrers are dropped.
+- File size always bucketed client-side before send — the raw byte count never leaves the browser.
+- Auto-fills `device`/`browser`/`os` from a categorical UA classifier (`ua.ts`); the raw User-Agent string never leaves the browser.
+- Transport: `navigator.sendBeacon` with `fetch(..., { keepalive: true })` fallback. Fire-and-forget. Never blocks UX, never throws.
 
-### Wire-up points (only 5 call sites)
+### Wire-up points (the 5 shipped call sites)
 
-| Where | Event |
+| Event | Site |
 |---|---|
-| `src/app/page.tsx` (or a small client component mounted there) | `landing_view` |
-| `src/app/app/page.tsx` mount | `app_open` |
-| `UploadZone.tsx` after successful PDF parse | `pdf_upload` or `fillbuddy_upload` |
-| `PdfAnnotator.tsx` "Download PDF" success path | `pdf_download` |
-| `PdfAnnotator.tsx` "Save Progress" success path | `fillbuddy_save` |
+| `landing_view` | `src/app/page.tsx` via `<AnalyticsBeacon>` |
+| `app_open` | `src/app/app/page.tsx` mount |
+| `pdf_upload` | `src/app/app/page.tsx` — handleUpload (regular PDF branch) |
+| `fillbuddy_upload` | `src/app/app/page.tsx` — handleUpload (`.fillbuddy` resume branch) |
+| `pdf_download` | `src/components/PdfAnnotator.tsx` — `handleDownload` success |
+| `fillbuddy_save` | `src/components/PdfAnnotator.tsx` — `handleSaveProgress` success |
 
 That's it. No other instrumentation creep.
+
+### Known gaps (not yet wired)
+
+- `engineMode` and `wasEncrypted` are accepted by the schema but not currently surfaced by the upload flow (which doesn't call `extractFields`). The dashboard renders these as `NULL` for now. Backfilling is straightforward when needed.
 
 ---
 
 ## 8. Server-side ingestion
 
-`src/app/api/events/route.ts`:
+Live code: `src/app/api/events/route.ts`. Schema: `src/lib/analytics/schema.ts` (shared with the client).
 
-```ts
-import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
-import { getCloudflareContext } from '@opennextjs/cloudflare';
+Key invariants:
 
-const Body = z.object({
-  id: z.string().uuid(),
-  type: z.enum([
-    'landing_view','app_open','pdf_upload','fillbuddy_upload',
-    'pdf_download','fillbuddy_save',
-  ]),
-  visitorId: z.string().uuid().nullish(),
-  sessionId: z.string().uuid().nullish(),
-  device: z.enum(['desktop','mobile','tablet','other']).nullish(),
-  browser: z.enum(['chrome','firefox','safari','edge','other']).nullish(),
-  os: z.enum(['windows','macos','linux','ios','android','other']).nullish(),
-  referrerHost: z.string().max(120).nullish(),
-  engineMode: z.enum(['direct','overlay']).nullish(),
-  pageCount: z.number().int().nonnegative().max(10000).nullish(),
-  annotationCount: z.number().int().nonnegative().max(100000).nullish(),
-  fileSizeBucket: z.enum(['<100KB','100KB-1MB','1-5MB','5-20MB','>20MB']).nullish(),
-  wasEncrypted: z.boolean().nullish(),
-  durationMs: z.number().int().nonnegative().max(86_400_000).nullish(),
-});
-
-export async function POST(req: NextRequest) {
-  const parsed = Body.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ ok: false }, { status: 400 });
-  const e = parsed.data;
-
-  const { env, cf } = getCloudflareContext();
-  const country = (cf?.country as string | undefined) ?? null;
-
-  const ts = Date.now();
-  const d = new Date(ts);
-  const date = d.toISOString().slice(0, 10);
-  const hour = d.getUTCHours();
-
-  await env.DB.prepare(
-    `INSERT OR IGNORE INTO events
-     (id, ts, date, hour, event_type, visitor_id, session_id, country,
-      device, browser, os, referrer_host, engine_mode,
-      page_count, annotation_count, file_size_bucket, was_encrypted, duration_ms)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
-  ).bind(
-    e.id, ts, date, hour, e.type, e.visitorId ?? null, e.sessionId ?? null, country,
-    e.device ?? null, e.browser ?? null, e.os ?? null, e.referrerHost ?? null,
-    e.engineMode ?? null, e.pageCount ?? null, e.annotationCount ?? null,
-    e.fileSizeBucket ?? null, e.wasEncrypted == null ? null : (e.wasEncrypted ? 1 : 0),
-    e.durationMs ?? null,
-  ).run();
-
-  return NextResponse.json({ ok: true });
-}
-```
-
-Notes:
-
-- `INSERT OR IGNORE` makes retries idempotent on the client UUID.
-- IP is never read or written. We only read `cf.country`.
-- No `runtime = 'edge'` directive — the project runs on the Workers Node-compat runtime per `docs/tech-stack.md` §1.
+- Strict Zod validation with `.strict()` — unknown keys are rejected, so the client can never accidentally smuggle a `filename` or `userAgent` field into the table.
+- `INSERT OR IGNORE` keyed on the client UUID — retries (e.g. sendBeacon double-fires) are idempotent.
+- IP address is never read or written. Country comes from `cf.country` only.
+- `ts` / `date` / `hour` are derived **server-side** from `Date.now()` (UTC). The client cannot influence these.
+- No `runtime = 'edge'` directive — runs on the Workers Node-compat runtime per `docs/tech-stack.md` §1.
 
 ### Abuse / cost protection
 
@@ -377,111 +304,53 @@ Why not bcrypt? The secret here is pre-shared, not a user-typed weak password, s
 6. **Engine mode mix** + **encrypted PDF rate** — useful for tech health.
 7. **`.fillbuddy` activity**: saves vs resumes by day. Tells you if save-and-resume is actually used.
 
-### Sample queries
+### Queries
 
-Daily totals (the headline numbers the user explicitly asked for):
+Live code: `src/lib/analytics/queries.ts`. Each function is documented inline. Highlights:
 
-```sql
-SELECT
-  date,
-  SUM(event_type = 'pdf_upload')        AS uploads,
-  SUM(event_type = 'pdf_download')      AS downloads,
-  SUM(event_type = 'fillbuddy_save')    AS saves,
-  SUM(event_type = 'fillbuddy_upload')  AS resumes
-FROM events
-WHERE date >= date('now','-30 days')
-GROUP BY date
-ORDER BY date DESC;
-```
+- `getKpiWindow(db, daysBack)` — counters for today / yesterday / 7d / 30d, plus distinct-visitor count.
+- `getDailySeries(db, days)` — per-day totals for the trend line chart.
+- `getHourlyHeatmap(db, days, eventType)` — 7×24 grid of counts.
+- `getCountryLeaderboard(db, days, limit)` — top countries by event count.
+- `getDeviceBreakdown` / `getBrowserBreakdown` / `getOsBreakdown` — share-of-traffic by category.
+- `getFunnel(db, days)` — sessions that uploaded → downloaded → saved, with conversion percentages.
+- `getReturningStats(db, days)` — one-time vs returning visitors based on persistent visitor ID.
+- `getRecentEvents(db, limit)` — activity feed for the dashboard table.
 
-Hourly breakdown for a given day:
-
-```sql
-SELECT hour, event_type, COUNT(*) AS c
-FROM events
-WHERE date = ?1
-GROUP BY hour, event_type
-ORDER BY hour;
-```
-
-Upload → download conversion within the same session:
-
-```sql
-WITH s AS (
-  SELECT session_id,
-    MAX(event_type = 'pdf_upload')   AS uploaded,
-    MAX(event_type = 'pdf_download') AS downloaded
-  FROM events
-  WHERE date >= date('now','-7 days') AND session_id IS NOT NULL
-  GROUP BY session_id
-)
-SELECT
-  SUM(uploaded)                       AS sessions_with_upload,
-  SUM(uploaded AND downloaded)        AS sessions_completed,
-  ROUND(100.0 * SUM(uploaded AND downloaded) / NULLIF(SUM(uploaded),0), 1) AS conversion_pct
-FROM s;
-```
-
-Country leaderboard:
-
-```sql
-SELECT country, COUNT(*) AS uploads
-FROM events
-WHERE event_type = 'pdf_upload'
-  AND date >= date('now','-30 days')
-GROUP BY country
-ORDER BY uploads DESC
-LIMIT 20;
-```
-
-Returning-visitor rate (uses persistent `visitor_id`):
-
-```sql
-SELECT
-  COUNT(DISTINCT visitor_id) FILTER (WHERE visit_count = 1) AS one_time,
-  COUNT(DISTINCT visitor_id) FILTER (WHERE visit_count > 1) AS returning
-FROM (
-  SELECT visitor_id, COUNT(DISTINCT date) AS visit_count
-  FROM events
-  WHERE visitor_id IS NOT NULL
-    AND date >= date('now','-30 days')
-  GROUP BY visitor_id
-);
-```
+**Gotcha:** `returning` is a reserved SQLite keyword (RETURNING clause). Don't use it as a column alias — `getReturningStats` uses `ret` instead and remaps in JS.
 
 ---
 
-## 10. Implementation plan (phased)
+## 10. Implementation status
 
-Keep each phase shippable on its own.
+### Phase A — Plumbing ✅
 
-### Phase A — Plumbing (half a day)
+- D1 binding `DB` (`fillbuddy-analytics`) added to `wrangler.jsonc`.
+- `drizzle/0001_analytics.sql` applied to local + remote.
+- `src/app/api/events/route.ts` with strict Zod validation.
+- Smoke-tested with `curl` — row appears with `country` populated from `cf-ipcountry`.
 
-- [ ] Add D1 binding to `wrangler.jsonc`
-- [ ] `wrangler d1 create fillbuddy-analytics`
-- [ ] `drizzle/0001_analytics.sql` + apply local + remote
-- [ ] `wrangler types`
-- [ ] `src/app/api/events/route.ts` with Zod
-- [ ] Smoke test: `curl -X POST` and verify a row appears
+### Phase B — Capture ✅ (commit `d5fac4b`)
 
-### Phase B — Capture (half a day)
+- `src/lib/analytics/{ids,ua,buckets,client,schema}.ts` shipped.
+- All 5 wire-up sites instrumented (see §7 table).
+- `/privacy` page added with full disclosure + opt-out instructions.
+- Privacy link added to landing footer.
 
-- [ ] `src/lib/analytics/{ids,ua,buckets,client,schema}.ts`
-- [ ] Wire 5 call sites (landing, app open, upload, download, save)
-- [ ] Update privacy copy on landing page footer + add `/privacy` page disclosing exactly what's in §2
+### Phase C — Dashboard ✅ (commit `9e6dd3c`)
 
-### Phase C — Dashboard (one day)
+- `/admin/analytics` server page, gated by `ANALYTICS_ADMIN_TOKEN`.
+- Auth: shared-token + signed-cookie via Web Crypto SHA-256 (see §9).
+- Login + logout routes (`/admin/analytics/{login,logout}`).
+- All queries in `src/lib/analytics/queries.ts`.
+- UI: pure server-rendered Tailwind + SVG (`src/components/admin/*`). No chart library, no client JS.
 
-- [ ] `/admin/analytics` server page, password-cookie gated
-- [ ] Queries from §9 as `lib/analytics/queries.ts`
-- [ ] Render with plain Tailwind grid + a tiny SVG bar/heatmap (no chart lib needed for v1)
-- [ ] Optional: add Recharts later if more views
+### Phase D — Deferred until needed
 
-### Phase D (defer until needed)
-
-- [ ] KV rate-limit on `/api/events`
-- [ ] Cron trigger building `event_rollups_hourly`
-- [ ] Workers Analytics Engine for high-cardinality stuff (e.g., per-minute counts) if D1 GROUP BY ever bites
+- [ ] KV rate-limit on `/api/events` — add when abuse appears.
+- [ ] Cron trigger building `event_rollups_hourly` — add when `events` exceeds ~5M rows.
+- [ ] Workers Analytics Engine for high-cardinality stuff — add when a single dashboard query scans >1M rows.
+- [ ] Backfill `engineMode` / `wasEncrypted` from the upload flow (see §7 "Known gaps").
 
 ---
 
@@ -496,9 +365,11 @@ Keep each phase shippable on its own.
 
 ---
 
-## 12. Privacy disclosure copy (drop into `/privacy` page)
+## 12. Privacy disclosure
 
-> **What we measure.** We log a small anonymous event (`pdf_upload`, `pdf_download`, `fillbuddy_save`, etc.) when you use FillBuddy, so we know how many people are using the tool and whether it works for them. Each event includes: a random ID generated in your browser (no name, no email), your country (from Cloudflare's network — never your IP address), your browser family (Chrome / Firefox / Safari / etc.), whether you're on desktop or mobile, the page count of your PDF, and the time. **We never log your PDF, your filename, what you typed into it, your IP address, or your exact location.** You can disable analytics entirely by running `localStorage.setItem('fb_analytics_opt_out','1')` in your browser console — the app respects this immediately.
+Live page: [`/privacy`](https://fillbuddy.org/privacy). Source: `src/app/privacy/page.tsx`.
+
+If anything in §2 or §7 changes, the privacy page must change too — they are the user-facing summary of the same contract.
 
 ---
 

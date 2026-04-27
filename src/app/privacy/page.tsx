@@ -38,8 +38,20 @@ export default function PrivacyPage() {
             Privacy
           </h1>
         </div>
-        <p className="text-sm text-slate-500 mb-10">
+        <p className="text-sm text-slate-500 mb-1">
           Last updated: April 2026
+        </p>
+        <p className="text-sm text-slate-500 mb-10">
+          FillBuddy is a product by{' '}
+          <a
+            href="https://devtuskers.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-slate-700 hover:text-amber-600 transition-colors"
+          >
+            DevTuskers
+          </a>
+          .
         </p>
 
         <section className="space-y-6 text-[15px] leading-7 text-slate-700">
@@ -118,8 +130,8 @@ export default function PrivacyPage() {
           </h2>
           <p>
             Events are stored in a Cloudflare D1 database (SQLite, edge-located).
-            Only the project maintainer has access. We do not share, sell, or
-            otherwise transmit this data to anyone.
+            Only DevTuskers (the studio behind FillBuddy) has access. We do not
+            share, sell, or otherwise transmit this data to anyone.
           </p>
 
           <h2 className="font-heading text-xl font-bold text-slate-900 pt-4">
@@ -129,7 +141,14 @@ export default function PrivacyPage() {
             Questions, corrections, or you&apos;d like your data removed (we can
             delete by visitor ID — open dev tools, copy{' '}
             <code className="bg-slate-100 px-1.5 py-0.5 rounded text-[13px]">localStorage.fb_visitor_id</code>,
-            and email it to us)? Reach out via the project repo.
+            and email it to us)? Email{' '}
+            <a
+              href="mailto:hello@devtuskers.com?subject=FillBuddy%20privacy%20question"
+              className="font-semibold text-slate-900 underline decoration-amber-400 underline-offset-2 hover:text-amber-700"
+            >
+              hello@devtuskers.com
+            </a>
+            .
           </p>
         </section>
       </main>

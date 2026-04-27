@@ -9,6 +9,10 @@ export const metadata: Metadata = {
   title: 'FillBuddy — Fill PDFs Privately in Your Browser. Free Forever.',
   description:
     'Fill, annotate & sign any PDF directly in your browser. No uploads, no accounts, no watermarks. Save progress and resume later. 100% free, 100% private.',
+  applicationName: 'FillBuddy',
+  authors: [{ name: 'DevTuskers', url: 'https://devtuskers.com' }],
+  creator: 'DevTuskers',
+  publisher: 'DevTuskers',
   keywords: [
     'fill pdf online free',
     'pdf form filler no upload',
