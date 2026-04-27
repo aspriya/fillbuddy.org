@@ -8,6 +8,7 @@ import PdfAnnotator from '@/components/PdfAnnotator';
 import type { Annotation } from '@/lib/types';
 import { FileText, PenLine, Clock } from 'lucide-react';
 import Logo from '@/components/Logo';
+import { trackEvent } from '@/lib/analytics/client';
 
 interface FillbuddyMeta {
   fileName: string;
@@ -31,6 +32,7 @@ export default function AppPage() {
     loadEngines()
       .then(() => setReady(true))
       .catch(console.error);
+    trackEvent('app_open');
   }, []);
 
   const handleUpload = useCallback(
@@ -63,6 +65,12 @@ export default function AppPage() {
           });
           setView('resuming');
 
+          trackEvent('fillbuddy_upload', {
+            pageCount: typeof data.pageCount === 'number' ? data.pageCount : undefined,
+            annotationCount: Array.isArray(data.annotations) ? data.annotations.length : undefined,
+            fileSizeBytes: file.size,
+          });
+
           setTimeout(() => setView('annotating'), 2000);
         } else {
           const bytes = await file.arrayBuffer();
@@ -70,6 +78,10 @@ export default function AppPage() {
           setFileName(file.name);
           setInitialAnnotations([]);
           setView('annotating');
+
+          trackEvent('pdf_upload', {
+            fileSizeBytes: file.size,
+          });
         }
       } catch (e: any) {
         setError(e.message || 'Could not load this file.');

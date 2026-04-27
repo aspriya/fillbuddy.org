@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import Logo from '@/components/Logo';
+import AnalyticsBeacon from '@/components/AnalyticsBeacon';
 import {
   Shield,
   Type,
@@ -85,6 +86,7 @@ const faqJsonLd = {
 export default function LandingPage() {
   return (
     <div className="landing-bg min-h-screen text-gray-200">
+      <AnalyticsBeacon event="landing_view" />
       {/* JSON-LD */}
       <script
         type="application/ld+json"
@@ -431,7 +433,12 @@ export default function LandingPage() {
           <p>
             100% free &amp; open. Built for people who just need to fill a damn PDF.
           </p>
-          <p>© {new Date().getFullYear()} FillBuddy</p>
+          <div className="flex items-center gap-4">
+            <Link href="/privacy" className="hover:text-gray-400 transition-colors">
+              Privacy
+            </Link>
+            <p>© {new Date().getFullYear()} FillBuddy</p>
+          </div>
         </div>
       </footer>
     </div>

@@ -28,6 +28,7 @@ import SignaturePad from './SignaturePad';
 import Logo from './Logo';
 import ContextMenu, { type ContextMenuItem } from './ContextMenu';
 import { loadEngines, exportAnnotatedPdf } from '@/lib/pdf-engine';
+import { trackEvent } from '@/lib/analytics/client';
 
 /* ── Constants ─────────────────────────────────────────────── */
 
@@ -608,6 +609,11 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+
+      trackEvent('pdf_download', {
+        pageCount: pages.length,
+        annotationCount: annotations.length,
+      });
     } catch (err) {
       console.error('Export failed:', err);
     }
@@ -638,6 +644,11 @@ export default function PdfAnnotator({ pdfBytes, fileName, onBack, initialAnnota
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+
+    trackEvent('fillbuddy_save', {
+      pageCount: pages.length,
+      annotationCount: annotations.length,
+    });
 
     setSaveToast(true);
     setTimeout(() => setSaveToast(false), 3000);
